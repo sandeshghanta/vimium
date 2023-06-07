@@ -76,6 +76,11 @@
     "default_icon": "icons/browser_action_disabled.png",
     "default_popup": "pages/popup.html"
   },
+  "browser_specific_settings": {
+    "gecko": {
+        "id": "test@gmail.com"
+    }
+  },
   "web_accessible_resources": [
     "pages/vomnibar.html",
     "content_scripts/vimium.css",

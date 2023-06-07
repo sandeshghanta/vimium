@@ -59,6 +59,63 @@ class Google extends GoogleXMLBaseEngine {
   }
 }
 
+class JenkinsBaseEngine extends BaseEngine {
+  parse(xhr){
+    return Array.from(JSON.parse(xhr.responseText)[1]);
+  }
+}
+
+class MasterJenkinsSearch extends JenkinsBaseEngine {
+  constructor() {
+    super({
+      engineUrl: "http://smb-irjenkins.dev.purestorage.com:8080/search/suggestOpenSearch?q=%s",
+      regexps: ["."],
+      example: {
+        searchUrl: "http://smb-irjenkins.dev.purestorage.com:8080/search/?q=%s",
+        keyword: "mjs"
+      }
+    });
+  }
+}
+
+class MasterJenkins extends JenkinsBaseEngine {
+  constructor() {
+    super({
+      engineUrl: "http://master-irjenkins.dev.purestorage.com:8080/search/suggestOpenSearch?q=%s",
+      regexps: ["."],
+      example: {
+        searchUrl: "http://master-irjenkins.dev.purestorage.com:8080/job/%s",
+        keyword: "mj"
+      }
+    });
+  }
+}
+
+class SMBJenkinsSearch extends JenkinsBaseEngine {
+  constructor() {
+    super({
+      engineUrl: "http://smb-irjenkins.dev.purestorage.com:8080/search/suggestOpenSearch?q=%s",
+      regexps: ["."],
+      example: {
+        searchUrl: "http://smb-irjenkins.dev.purestorage.com:8080/search/?q=%s",
+        keyword: "sjs"
+      }
+    });
+  }
+}
+
+class SMBJenkins extends JenkinsBaseEngine {
+  constructor() {
+    super({
+      engineUrl: "http://smb-irjenkins.dev.purestorage.com:8080/search/suggestOpenSearch?q=%s",
+      regexps: ["."],
+      example: {
+        searchUrl: "http://smb-irjenkins.dev.purestorage.com:8080/job/%s",
+        keyword: "sj"
+      }
+    });
+  }
+}
 
 class GoogleMaps extends GoogleXMLBaseEngine {
   constructor() {
@@ -241,6 +298,10 @@ class DummyCompletionEngine extends BaseEngine {
 
 // Note: Order matters here.
 const CompletionEngines = [
+  SMBJenkins,
+  SMBJenkinsSearch,
+  MasterJenkins,
+  MasterJenkinsSearch,
   Youtube,
   GoogleMaps,
   Google,
