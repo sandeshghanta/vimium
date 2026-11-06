@@ -94,6 +94,13 @@
   //     "strict_min_version": "109.0"
   //   }
   // },
+  // scale: see vomnibarInNewTab in background_scripts/main.js. Hammerspoon sends this on Cmd+T.
+  "commands": {
+    "vomnibarInNewTab": {
+      "suggested_key": { "default": "Ctrl+Shift+Comma", "mac": "Command+Shift+Comma" },
+      "description": "Open the Vomnibar in a new tab"
+    }
+  },
   "action": {
     "default_icon": {
       "16": "icons/action_disabled_16.png",

@@ -919,8 +919,32 @@ chrome.runtime.onStartup.addListener(async () => {
   await initializeExtension();
 });
 
+// scale: Chrome-level shortcut (manifest "commands") that opens the Vomnibar in new-tab mode.
+// Chrome consumes the keystroke before the page sees it, so it can't clash with text fields,
+// editors or video players, and needs no insert-mode escape. Where Vimium has no content script
+// (chrome:// pages, the Web Store, the PDF viewer, tabs opened before Vimium was reloaded), the
+// message has no receiver and we open a plain new tab instead, like Chrome's own Cmd+T.
+async function vomnibarInNewTab(tab) {
+  tab ??= (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+  if (!tab) return chrome.tabs.create({});
+  try {
+    await chrome.tabs.sendMessage(tab.id, {
+      handler: "runInTopFrame",
+      sourceFrameId: 0,
+      registryEntry: { command: "Vomnibar.activateInNewTab", options: {} },
+    }, { frameId: 0 });
+  } catch {
+    await chrome.tabs.create({ windowId: tab.windowId });
+  }
+}
+
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command === "vomnibarInNewTab") vomnibarInNewTab(tab);
+});
+
 Object.assign(globalThis, {
   TabOperations,
+  vomnibarInNewTab,
   // Exported for tests:
   HintCoordinator,
   BackgroundCommands,
