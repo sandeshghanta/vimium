@@ -8,7 +8,11 @@ DotFiles submodule `companies/active/vimium` (repo root is the extension, no bui
 
 - **Vomnibar: rank open tabs above all other suggestions** — matching open
   tabs always sort first, and the "domain" row is dropped when a tab matches.
-- This `scale/` folder (test + notes). Chrome ignores it; keep it free of
+- **Chrome shortcut "Open the Vomnibar in a new tab"** (`Cmd+Shift+,`, manifest `commands` +
+  `vomnibarInNewTab` in `background_scripts/main.js`). Chrome handles it before the page sees the
+  key, so it never clashes with text fields, editors or video. Opens a plain new tab where Vimium
+  has no content script. Hammerspoon maps Cmd+T in Chrome to it.
+- This `scale/` folder (tests + notes). Chrome ignores it; keep it free of
   `__pycache__` (Chrome refuses to load an extension containing `_`-prefixed names).
 
 ## Updating to a new upstream release
@@ -36,15 +40,19 @@ suggestions. `--ext <folder>` to test another build, `--headed` to watch,
 
 ## Settings this setup relies on (Vimium Options)
 
-Custom key mappings (Hammerspoon sends Ctrl+Shift+T on Cmd+T in Chrome, see
-DotFiles `hammerspoon/init.lua`):
-
-```
-map <c-T> Vomnibar.activateInNewTab
-```
+No custom key mapping is needed for Cmd+T any more. After loading/reloading, confirm the
+shortcut in `chrome://extensions/shortcuts` (Vimium -> "Open the Vomnibar in a new tab" =
+Cmd+Shift+,); Chrome drops a suggested key that clashes with another extension.
 
 Custom search engines:
 
 ```
 gcal: https://calendar.google.com Google Calendar
 ```
+
+## bench_vomnibar.py
+
+Times trigger -> Vomnibar visible and focused, per build, in a throwaway headless Chromium:
+`uv run scale/bench_vomnibar.py --build base=<dir> --build new=<dir>` (`--reps`, `--tabs`).
+Covers the old page-keystroke path, the Chrome-shortcut path, a focused textarea, the
+chrome:// fallback and a 30-tab memory delta.
