@@ -519,6 +519,9 @@ export class TabCompleter {
     suggestions.forEach(function (suggestion, i) {
       suggestion.relevancy *= 8;
       suggestion.relevancy /= (i / 4) + 1;
+      // PATCH(tabs-first): lift every matching tab above all other completers
+      // (domain is a fixed 2.0, history/bookmarks <= ~1). Order among tabs is kept.
+      suggestion.relevancy += 10;
     });
     return suggestions;
   }
@@ -668,6 +671,11 @@ export class MultiCompleter {
 
   // Rank them, simplify the URLs, and de-duplicate suggestions with the same simplified URL.
   postProcessSuggestions(request, queryTerms, suggestions) {
+    // PATCH(tabs-first): when an open tab matches, drop the "domain" row so it
+    // can't open a duplicate of a site that is already open.
+    if (suggestions.some((s) => s.description === "tab")) {
+      suggestions = suggestions.filter((s) => s.description !== "domain");
+    }
     for (const s of suggestions) {
       s.computeRelevancy(queryTerms);
     }
