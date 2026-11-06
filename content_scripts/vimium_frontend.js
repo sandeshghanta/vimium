@@ -254,6 +254,13 @@ async function initializeOnDomReady() {
   // Tell the background page we're in the domReady state.
   await chrome.runtime.sendMessage({ handler: "domReady" });
 
+  // scale: build the Vomnibar iframe ahead of time in the top frame, so the first Vomnibar open
+  // on a page doesn't wait for vomnibar_page.html to load. Deferred to idle time so it doesn't
+  // compete with the page's own load.
+  if (DomUtils.isTopFrame() && isEnabledForUrl) {
+    globalThis.requestIdleCallback(() => Vomnibar.init(), { timeout: 2000 });
+  }
+
   const isVimiumNewTabPage = document.location.href == Settings.vimiumNewTabPageUrl;
   if (!isVimiumNewTabPage) return;
 
