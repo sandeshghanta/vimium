@@ -45,7 +45,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         key = self.headers.get("Host", "").split(":")[0] + self.path
         title = TITLES.get(key, key)
-        body = f"<!doctype html><title>{title}</title><h1>{title}</h1>".encode()
+        # Fragments never reach the server, so per-#fragment titles are set client-side.
+        frag_titles = {k[len(key):]: v for k, v in TITLES.items() if k.startswith(key + "#")}
+        script = ("<script>const T=%s;const f=()=>{if(T[location.hash])document.title=T[location.hash]};"
+                  "f();addEventListener('hashchange',f)</script>" % json.dumps(frag_titles))
+        body = f"<!doctype html><title>{title}</title><h1>{title}</h1>{script}".encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
@@ -60,8 +64,9 @@ def parse_page(spec: str, port: int) -> str:
     target, _, title = spec.partition("=")
     parts = urlsplit("http://" + target)
     path = parts.path or "/"
-    TITLES[parts.hostname + path] = title or target
-    return f"http://{parts.hostname}:{port}{path}"
+    frag = f"#{parts.fragment}" if parts.fragment else ""
+    TITLES[parts.hostname + path + frag] = title or target
+    return f"http://{parts.hostname}:{port}{path}{frag}"
 
 
 async def run(args) -> list[dict]:

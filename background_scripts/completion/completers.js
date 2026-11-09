@@ -684,13 +684,20 @@ export class MultiCompleter {
     // Simplify URLs and remove duplicates (duplicate simplified URLs, that is).
     let count = 0;
     const seenUrls = {};
+    // PATCH(hash-dedupe): the same page reached via different #section anchors (doc sites,
+    // artifacts) shows once. Keyed on URL-without-fragment plus title, so hash-routed apps whose
+    // views have distinct titles (e.g. Gmail threads) still show separately. Suggestions are
+    // already sorted, so the best one (an open tab, given tabs-first) is the one kept.
+    const seenPages = {};
 
     const dedupedSuggestions = [];
     for (const s of suggestions) {
       const url = s.shortenUrl();
-      if (s.deDuplicate && seenUrls[url]) continue;
+      const pageKey = url.replace(/#.*$/, "") + "\n" + (s.title ?? "");
+      if (s.deDuplicate && (seenUrls[url] || seenPages[pageKey])) continue;
       if (count++ === maxResults) break;
       seenUrls[url] = s;
+      seenPages[pageKey] = s;
       dedupedSuggestions.push(s);
     }
 

@@ -12,6 +12,9 @@ DotFiles submodule `companies/active/vimium` (repo root is the extension, no bui
   `vomnibarInNewTab` in `background_scripts/main.js`). Chrome handles it before the page sees the
   key, so it never clashes with text fields, editors or video. Opens a plain new tab where Vimium
   has no content script. Hammerspoon maps Cmd+T in Chrome to it.
+- **Vomnibar: one row per page across `#section` anchors** — suggestions whose URLs differ only
+  by fragment and share a title collapse to the best-ranked one (the open tab, if any).
+  Hash-routed views with distinct titles (Gmail threads) stay separate.
 - This `scale/` folder (tests + notes). Chrome ignores it; keep it free of
   `__pycache__` (Chrome refuses to load an extension containing `_`-prefixed names).
 
