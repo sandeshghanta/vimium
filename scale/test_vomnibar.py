@@ -61,9 +61,11 @@ class Handler(BaseHTTPRequestHandler):
 
 def parse_page(spec: str, port: int) -> str:
     """'host/path=Title' -> 'http://host:port/path', registering the title."""
-    target, _, title = spec.partition("=")
+    target, _, title = spec.rpartition("=")  # last "=", so URLs may contain ?a=b
+    if not target:
+        target, title = title, ""
     parts = urlsplit("http://" + target)
-    path = parts.path or "/"
+    path = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
     frag = f"#{parts.fragment}" if parts.fragment else ""
     TITLES[parts.hostname + path + frag] = title or target
     return f"http://{parts.hostname}:{port}{path}{frag}"

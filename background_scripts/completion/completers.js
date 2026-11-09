@@ -16,6 +16,7 @@ import * as completionSearch from "./search_wrapper.js";
 import * as userSearchEngines from "../user_search_engines.js";
 import * as ranking from "./ranking.js";
 import { RegexpCache } from "./ranking.js";
+import { pageKey } from "./page_identity.js";
 
 // Set this to true to render relevancy when debugging the ranking scores.
 const showRelevancy = false;
@@ -684,20 +685,19 @@ export class MultiCompleter {
     // Simplify URLs and remove duplicates (duplicate simplified URLs, that is).
     let count = 0;
     const seenUrls = {};
-    // PATCH(hash-dedupe): the same page reached via different #section anchors (doc sites,
-    // artifacts) shows once. Keyed on URL-without-fragment plus title, so hash-routed apps whose
-    // views have distinct titles (e.g. Gmail threads) still show separately. Suggestions are
-    // already sorted, so the best one (an open tab, given tabs-first) is the one kept.
+    // PATCH(page-dedupe): the same page reached via different #anchors, tracking parameters or
+    // per-site parameters shows once; see page_identity.js for the rules. Suggestions are already
+    // sorted, so the best one (an open tab, given tabs-first) is the one kept.
     const seenPages = {};
 
     const dedupedSuggestions = [];
     for (const s of suggestions) {
       const url = s.shortenUrl();
-      const pageKey = url.replace(/#.*$/, "") + "\n" + (s.title ?? "");
-      if (s.deDuplicate && (seenUrls[url] || seenPages[pageKey])) continue;
+      const key = pageKey(s.url, s.title);
+      if (s.deDuplicate && (seenUrls[url] || (key && seenPages[key]))) continue;
       if (count++ === maxResults) break;
       seenUrls[url] = s;
-      seenPages[pageKey] = s;
+      if (key) seenPages[key] = s;
       dedupedSuggestions.push(s);
     }
 
