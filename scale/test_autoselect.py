@@ -5,11 +5,11 @@
 """Check the autoselect-first patch end to end in a throwaway headless Chromium.
 
 Opens the Vomnibar the way Cmd+T does (the vomnibarInNewTab Chrome command), types, presses
-keys, and asserts which URL the new tab gets. Fake *.test sites, empty profile. The "Up, Enter"
-case opens the default search engine, so that one tab does reach the network.
+keys, and asserts which URL the new tab goes to. Fake *.test sites, empty profile; every other host
+resolves to nowhere, so nothing reaches the network.
 
   uv run scale/test_autoselect.py            # this checkout
-  uv run scale/test_autoselect.py --ext DIR  # another build (stock Vimium fails cases 1 and 3)
+  uv run scale/test_autoselect.py --ext DIR  # another build (stock Vimium fails several cases)
 """
 
 import argparse
@@ -47,10 +47,12 @@ async def open_vomnibar(page, sw):
         await sw.evaluate("vomnibarInNewTab()")
         for _ in range(30):
             frame = next((f for f in page.frames if "vomnibar_page.html" in f.url), None)
+            # Visible *and* focused: right after Escape the old box is still visible while it
+            # hides, and typing into it then goes nowhere.
             if frame and await frame.locator("#vomnibar").is_visible():
                 box = frame.locator("#vomnibar-search-area input")
-                await box.wait_for()
-                return frame, box
+                if await box.evaluate("e => document.hasFocus() && document.activeElement === e"):
+                    return frame, box
             await page.wait_for_timeout(100)
     raise SystemExit("Vomnibar did not open (is Vimium loaded and enabled?)")
 
@@ -76,12 +78,18 @@ async def run(ext: str) -> int:
                 args=[
                     f"--disable-extensions-except={ext}",
                     f"--load-extension={ext}",
-                    "--host-resolver-rules=MAP *.test 127.0.0.1",
+                    # *.test -> the local server; everything else -> nowhere, so the search engine
+                    # and go-link host are never reached (the navigation request is still seen).
+                    "--host-resolver-rules=MAP *.test 127.0.0.1, MAP localhost 127.0.0.1, "
+                    "MAP * ~NOTFOUND",
                 ],
             )
             if not ctx.service_workers:
                 await ctx.wait_for_event("serviceworker", timeout=15000)
             sw = ctx.service_workers[0]
+            navigations = []
+            ctx.on("request", lambda r: r.is_navigation_request() and r.url.startswith("http")
+                   and navigations.append(r.url))
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             for path in ("/design", "/other"):  # history only
                 await page.goto(base + path)
@@ -89,14 +97,18 @@ async def run(ext: str) -> int:
             await page.wait_for_timeout(3000)
 
             async def enter_and_get_url(box, keys=("Enter",)):
+                """The URL the new tab navigates to (its first navigation request)."""
+                navigations.clear()
                 async with ctx.expect_page(timeout=5000) as info:
                     for k in keys:
                         await box.press(k)
                 new = await info.value
-                await new.wait_for_load_state("commit")
-                url = new.url
+                for _ in range(50):
+                    if navigations:
+                        break
+                    await page.wait_for_timeout(100)
                 await new.close()
-                return url
+                return navigations[0] if navigations else new.url
 
             # 1. Typing highlights the top suggestion; Enter opens it.
             frame, box = await open_vomnibar(page, sw)
@@ -120,15 +132,25 @@ async def run(ext: str) -> int:
             url = await enter_and_get_url(box)
             check("fast type+Enter opens top match", url == base + "/design", url)
 
-            # 4. An explicit URL is not auto-selected; Enter opens exactly what was typed.
+            # 4. A typed URL gets its own row, first and highlighted; Enter opens exactly that.
             frame, box = await open_vomnibar(page, sw)
             typed = f"localhost:{port}/other?x=1"
             await box.press_sequentially(typed, delay=20)
             await page.wait_for_timeout(800)
-            n_sel = await frame.locator("#vomnibar ul li.selected").count()
-            check("explicit URL: nothing highlighted", n_sel == 0, f"selected={n_sel}")
+            first = await frame.locator("#vomnibar ul li").first.inner_text()
+            check("typed URL: URL row first and highlighted",
+                  first.split()[0:1] == ["url"] and
+                  await frame.locator("#vomnibar ul li").first.get_attribute("class") == "selected",
+                  first.replace("\n", " ")[:60])
             url = await enter_and_get_url(box)
-            check("explicit URL: Enter opens it", url.endswith("/other?x=1"), url)
+            check("typed URL: Enter opens it", url.endswith("/other?x=1"), url)
+
+            # 4b. A domain you never visited opens instead of being searched.
+            frame, box = await open_vomnibar(page, sw)
+            await box.press_sequentially("example.org", delay=40)
+            await page.wait_for_timeout(800)
+            url = await enter_and_get_url(box)
+            check("unvisited domain: Enter opens it", url.startswith("http://example.org"), url)
 
             # 5. Down still moves the selection to row 2.
             frame, box = await open_vomnibar(page, sw)
@@ -139,6 +161,33 @@ async def run(ext: str) -> int:
                 "#vomnibar ul li", "els => els.findIndex(e => e.className === 'selected')")
             check("Down moves to row 2", idx == 1, f"index={idx}")
             await box.press("Escape")
+            await frame.locator("#vomnibar").wait_for(state="hidden")
+
+            # 6. Arc-style: a "web search" row is always offered; Enter on it searches the text.
+            frame, box = await open_vomnibar(page, sw)
+            await box.press_sequentially("widgets", delay=60)
+            await page.wait_for_timeout(800)
+            sources = await frame.eval_on_selector_all(
+                "#vomnibar ul li", "els => els.map(e => e.querySelector('.source:not(.no-insert-text)')"
+                "?.textContent.trim() || [...e.querySelectorAll('.source')].map(s => s.textContent.trim()).join(' '))")
+            idx = next((i for i, s in enumerate(sources) if "web search" in s), -1)
+            check("web search row present", idx >= 0, f"rows={sources}")
+            keys = ["ArrowDown"] * idx + ["Enter"]
+            url = await enter_and_get_url(box, keys)
+            check("Enter on web search row searches the text", "widgets" in url and "docs.test" not in url, url)
+
+            # 7. go/<name> opens the go-link straight away (template in local_config.js).
+            frame, box = await open_vomnibar(page, sw)
+            await box.press_sequentially("go/wiki", delay=40)
+            await page.wait_for_timeout(800)
+            url = await enter_and_get_url(box)
+            check("go/wiki opens the go-link", url.endswith("/go/wiki"), url)
+
+            # 8. Fast go-link + Enter: waits for the suggestions, never a stale or partial one.
+            frame, box = await open_vomnibar(page, sw)
+            await box.press_sequentially("go/wiki-pages", delay=0)
+            url = await enter_and_get_url(box)
+            check("fast go-link+Enter opens the full go-link", url.endswith("/go/wiki-pages"), url)
 
             await ctx.close()
     server.shutdown()

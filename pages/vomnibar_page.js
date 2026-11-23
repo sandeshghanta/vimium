@@ -73,6 +73,8 @@ class VomnibarUI {
     this.lastRequestId = null;
     // PATCH(autoselect-first): true while row 0 is highlighted by us rather than by the user.
     this.selectionIsAuto = false;
+    // PATCH(autoselect-first): true once the user moved the selection (arrows/Tab) since typing.
+    this.userMovedSelection = false;
     // PATCH(autoselect-first): the in-flight update() call, if any.
     this.pendingUpdate = null;
   }
@@ -206,6 +208,7 @@ class VomnibarUI {
       this.hide();
     } else if (["tab", "down"].includes(action)) {
       this.selectionIsAuto = false;
+      this.userMovedSelection = true;
       if (
         (action === "tab") &&
         (this.completerName === "omni") &&
@@ -223,6 +226,7 @@ class VomnibarUI {
       }
     } else if (action === "up") {
       this.selectionIsAuto = false;
+      this.userMovedSelection = true;
       this.selection -= 1;
       if (this.selection < this.initialSelectionValue) {
         this.selection = this.completions.length - 1;
@@ -269,7 +273,7 @@ class VomnibarUI {
     // PATCH(autoselect-first): if the user typed and hit Enter before the suggestions for the
     // latest keystroke arrived, wait for them, so Enter opens the top match for what is in the
     // box rather than a stale list (or a raw search). Skipped if the user picked a row by hand.
-    while (this.pendingUpdate && (this.selectionIsAuto || this.selection == -1)) {
+    while (this.pendingUpdate && !this.userMovedSelection) {
       await this.pendingUpdate.catch(() => {});
     }
     let query = this.input.value.trim();
@@ -318,6 +322,11 @@ class VomnibarUI {
           );
         }
       }
+    } else if (completion.isWebSearch) {
+      // PATCH(arc): the "web search" row searches exactly what is in the box.
+      this.hide(() =>
+        chrome.runtime.sendMessage({ handler: "launchSearchQuery", query, openInNewTab })
+      );
     } else if (isPrimarySearchSuggestion(completion)) {
       query = UrlUtils.createSearchUrl(query, completion.searchUrl);
       this.hide(() => this.launchUrl(query, openInNewTab));
@@ -393,6 +402,7 @@ class VomnibarUI {
 
   onInput() {
     this.seenTabToOpenCompletionList = false;
+    this.userMovedSelection = false; // PATCH(autoselect-first)
     this.cancelCompletions();
 
     // For custom search engines, we suppress the leading prefix (e.g. the "w" of "w query terms")

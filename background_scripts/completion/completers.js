@@ -17,6 +17,8 @@ import * as userSearchEngines from "../user_search_engines.js";
 import * as ranking from "./ranking.js";
 import { RegexpCache } from "./ranking.js";
 import { pageKey } from "./page_identity.js";
+import { arcRank, goLinkUrl, SEARCH_SCORE } from "./arc_ranking.js";
+import { GO_LINK_URL } from "./local_config.js";
 
 // Set this to true to render relevancy when debugging the ranking scores.
 const showRelevancy = false;
@@ -51,6 +53,9 @@ export class Suggestion {
   // Whether this is meant to be the first suggestion from the user's custom search engine which
   // represents their query as typed, verbatim.
   isPrimarySuggestion = false;
+  // PATCH(arc): the "web search" row; Enter on it searches the typed text with Chrome's default
+  // search engine.
+  isWebSearch = false;
   // The generated HTML string for showing this suggestion in the Vomnibar.
   html;
   searchUrl;
@@ -425,6 +430,8 @@ export class DomainCompleter {
       // This should be the URL or the domain, or an empty string, but not null.
       url: domainsAndScores[0]?.[0] || "",
       relevancy: 2.0,
+      // PATCH(arc): the domain's most recent history entry, for arc_ranking.js.
+      relevancyData: this.domains[domainsAndScores[0]?.[0]]?.entry,
     });
     return result.url.length > 0 ? [result] : [];
   }
@@ -625,8 +632,10 @@ SearchEngineCompleter.debug = false;
 const maxResults = 10;
 
 export class MultiCompleter {
-  constructor(completers) {
+  // PATCH(arc): options.arcRanking ranks with arc_ranking.js (used for the omni Vomnibar).
+  constructor(completers, options = {}) {
     this.completers = completers;
+    this.arcRanking = options.arcRanking ?? false;
   }
 
   refresh() {
@@ -666,8 +675,94 @@ export class MultiCompleter {
 
     const promises = completers.map((c) => c.filter(request));
     let results = (await Promise.all(promises)).flat(1);
+    if (this.arcRanking && !queryMatchesUserSearchEngine && queryTerms.length > 0) {
+      return await this.arcPostProcess(request, queryTerms, results);
+    }
     results = this.postProcessSuggestions(request, queryTerms, results);
     return results;
+  }
+
+  // PATCH(arc): one score per row, a web-search row and a go-link row; see arc_ranking.js.
+  async arcPostProcess(request, queryTerms, suggestions) {
+    const query = request.query.trim();
+    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const rows = [];
+    for (const s of suggestions) {
+      if (!["tab", "bookmark", "history", "domain"].includes(s.description)) continue;
+      const entry = s.relevancyData ?? {};
+      rows.push({
+        kind: s.description,
+        url: s.url,
+        title: s.title,
+        wordRelevancy: ranking.wordRelevancy(queryTerms, s.url, s.title || null),
+        tabRecency: s.description === "tab" ? bgUtils.tabRecency.recencyScore(s.tabId) : 0,
+        isCurrentTab: s.description === "tab" && s.tabId === activeTab?.id,
+        lastVisitTime: entry.lastVisitTime,
+        visitCount: entry.visitCount,
+        typedCount: entry.typedCount,
+        suggestion: s,
+      });
+    }
+    // Arc keeps a typed URL first: "example.com", "localhost:3000/x", "https://...".
+    const typedUrl = goLinkUrl(query, GO_LINK_URL) ? null : await UrlUtils.convertToUrl(query);
+    if (typedUrl) {
+      rows.push({
+        kind: "url",
+        score: 50,
+        url: typedUrl,
+        title: query,
+        suggestion: new Suggestion({
+          queryTerms,
+          description: "url",
+          url: typedUrl,
+          title: query,
+          relevancy: 50,
+          autoSelect: true,
+          deDuplicate: false,
+        }),
+      });
+    }
+    const goUrl = goLinkUrl(query, GO_LINK_URL);
+    if (goUrl) {
+      rows.push({
+        kind: "golink",
+        score: 100,
+        suggestion: new Suggestion({
+          queryTerms,
+          description: "go link",
+          url: goUrl,
+          title: query,
+          relevancy: 100,
+          autoSelect: true,
+          deDuplicate: false,
+        }),
+      });
+    }
+    rows.push({
+      kind: "search",
+      score: SEARCH_SCORE,
+      suggestion: new Suggestion({
+        queryTerms,
+        description: "web search",
+        url: "",
+        title: query,
+        relevancy: SEARCH_SCORE,
+        isCustomSearch: true,
+        isWebSearch: true,
+        highlightTerms: false,
+        deDuplicate: false,
+      }),
+    });
+    const ranked = arcRank(query, rows);
+    return ranked.map((r) => {
+      r.suggestion.relevancy = r.score;
+      if (r.kind === "pastSearch") {
+        r.suggestion.description = "past search";
+        r.suggestion.title = r.title;
+      }
+      r.suggestion.generateHtml(request);
+      return r.suggestion;
+    });
   }
 
   // Rank them, simplify the URLs, and de-duplicate suggestions with the same simplified URL.

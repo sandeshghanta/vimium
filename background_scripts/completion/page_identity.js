@@ -84,3 +84,86 @@ export function pageKey(url, title) {
   }
   return `${host}${u.pathname}${query ? "?" + query : ""}\n${title ?? ""}`;
 }
+
+// Arc's "dedupByTitleAndHostList": on web apps that give many URLs one title (every view of a
+// Notion page, every Claude artifact version, every Google Maps pan), rows with the same title on
+// the same site are one row, whatever the path. Each entry is [group name, host, path prefix];
+// a host matches itself and its subdomains. Only for these sites, because elsewhere one fixed
+// title (e.g. "Dashboard") can cover genuinely different pages.
+export const TITLE_HOST_GROUPS = [
+  ["claude", "claude.ai", "/"],
+  ["claude", "claudeusercontent.com", "/"], // artifact frames, one subdomain per artifact
+  ["notion", "notion.so", "/"],
+  ["notion", "notion.com", "/"],
+  ["figma", "figma.com", "/"],
+  ["linear", "linear.app", "/"],
+  ["github", "github.com", "/"],
+  ["slack", "slack.com", "/"],
+  ["gcal", "calendar.google.com", "/"],
+  ["gmaps", "google.com", "/maps"],
+  ["gmaps", "maps.google.com", "/"],
+];
+
+// Strips the parts of a title that change without the page changing: unread counters
+// ("(3) WhatsApp", "(9+) Notion"), Slack's "- 24 new items", and a trailing " - Claude".
+export function cleanTitle(title) {
+  return (title ?? "")
+    .replace(/^\(\d+\+?\)\s*/, "")
+    .replace(/\s+-\s+\d+\+? new items?\b/i, "")
+    .replace(/\s+[-|]\s+Claude$/, "")
+    .trim();
+}
+
+// For a search engine results page in history, the query it searched for; otherwise null.
+export function searchResultsQuery(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const isGoogle = /(^|\.)google\.[a-z.]+$/i.test(u.hostname) && u.pathname === "/search";
+  const isBing = /(^|\.)bing\.com$/i.test(u.hostname) && u.pathname === "/search";
+  const isDdg = /(^|\.)duckduckgo\.com$/i.test(u.hostname);
+  if (!(isGoogle || isBing || isDdg)) return null;
+  const q = u.searchParams.get("q");
+  return q && q.trim() ? q.trim() : null;
+}
+
+// The title+site key for TITLE_HOST_GROUPS sites, or null for other sites or untitled pages.
+export function titleHostKey(url, title) {
+  const t = cleanTitle(title).toLowerCase();
+  if (!t) return null;
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const hostname = u.hostname.toLowerCase();
+  const group = TITLE_HOST_GROUPS.find(([, h, path]) =>
+    hostMatches(hostname, h) && u.pathname.startsWith(path)
+  );
+  return group ? `${group[0]}\n${t}` : null;
+}
+
+// History entries never worth suggesting: sign-in, SSO and redirect hops, and malformed URLs a
+// search engine produced from a go-link typed as a query ("…/go/x&sourceid=chrome").
+const JUNK_HOSTS = ["accounts.google.com", "login.microsoftonline.com"];
+const JUNK_PATH = /\/(oauth2?|sso|saml2?|signin|sign-in|login|logout|callback)(\/|$)/i;
+const JUNK_TITLE = /^(sign ?in|signing in|log ?in|logging in|redirecting)\b|[-|] sign ?in$/i;
+
+export function isJunkPage(url, title) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  const hostname = u.hostname.toLowerCase();
+  if (JUNK_HOSTS.some((h) => hostMatches(hostname, h))) return true;
+  if (JUNK_PATH.test(u.pathname)) return true;
+  if (u.pathname.includes("&sourceid=")) return true;
+  return JUNK_TITLE.test(cleanTitle(title)) ||
+    /signing in\.\.\.$/i.test(title ?? "");
+}

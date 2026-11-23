@@ -56,7 +56,7 @@ const completers = {
     completionSources.domains,
     completionSources.tabs,
     completionSources.searchEngines,
-  ]),
+  ], { arcRanking: true }), // PATCH(arc)
   bookmarks: new MultiCompleter([completionSources.bookmarks]),
   tabs: new MultiCompleter([completionSources.tabs]),
 };
