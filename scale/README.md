@@ -19,6 +19,14 @@ DotFiles submodule `companies/active/vimium` (repo root is the extension, no bui
   query string. The title is always part of the key, so views with distinct titles (Gmail
   threads, searches) stay separate. Edit those lists to add sites;
   `node scale/test_page_identity.mjs` checks the rules.
+- **Vomnibar: highlight the top suggestion** (`PATCH(autoselect-first)` in `pages/vomnibar_page.js`)
+  — in the omni Vomnibar (`o`, `O`, Cmd+T) row 1 is selected as you type, so Enter opens it.
+  Up from row 1 clears the selection, and then Enter opens or searches exactly what you typed.
+  Not applied when the query is an explicit URL (has a scheme, a `/` path or a `:port`). Enter
+  pressed before the latest suggestions arrive waits for them, so a fast type+Enter opens the
+  top match for what is in the box. `uv run scale/test_autoselect.py` checks it end to end
+  (stock Vimium fails 4 of its 7 checks). About 1 run in 6, the first Vomnibar open times out
+  in headless Chromium, on any build; just rerun.
 - This `scale/` folder (tests + notes). Chrome ignores it; keep it free of
   `__pycache__` (Chrome refuses to load an extension containing `_`-prefixed names).
 

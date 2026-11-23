@@ -16,6 +16,15 @@ import * as userSearchEngines from "../background_scripts/user_search_engines.js
 
 export let ui; // An instance of VomnibarUI.
 
+// PATCH(autoselect-first): a query the user clearly typed as a URL (has a scheme, a path or a
+// :port, and no spaces), e.g. "https://x", "localhost:3000", "github.com/org/repo". For these,
+// Enter keeps opening exactly what was typed instead of the top suggestion.
+export function looksLikeExplicitUrl(query) {
+  if (query.length == 0 || /\s/.test(query)) return false;
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(query) || query.includes("/") ||
+    /^[^:]+:\d+$/.test(query);
+}
+
 // Used for tests.
 export function reset() {
   ui = null;
@@ -62,6 +71,10 @@ class VomnibarUI {
     this.activeUserSearchEngine = null;
     // Used for synchronizing requests and responses to the background page.
     this.lastRequestId = null;
+    // PATCH(autoselect-first): true while row 0 is highlighted by us rather than by the user.
+    this.selectionIsAuto = false;
+    // PATCH(autoselect-first): the in-flight update() call, if any.
+    this.pendingUpdate = null;
   }
 
   setQuery(query) {
@@ -192,6 +205,7 @@ class VomnibarUI {
     if (action === "dismiss") {
       this.hide();
     } else if (["tab", "down"].includes(action)) {
+      this.selectionIsAuto = false;
       if (
         (action === "tab") &&
         (this.completerName === "omni") &&
@@ -208,6 +222,7 @@ class VomnibarUI {
         this.updateSelection();
       }
     } else if (action === "up") {
+      this.selectionIsAuto = false;
       this.selection -= 1;
       if (this.selection < this.initialSelectionValue) {
         this.selection = this.completions.length - 1;
@@ -251,6 +266,12 @@ class VomnibarUI {
 
   async handleEnterKey(event) {
     const isPrimarySearchSuggestion = (c) => c?.isPrimarySuggestion && c?.isCustomSearch;
+    // PATCH(autoselect-first): if the user typed and hit Enter before the suggestions for the
+    // latest keystroke arrived, wait for them, so Enter opens the top match for what is in the
+    // box rather than a stale list (or a raw search). Skipped if the user picked a row by hand.
+    while (this.pendingUpdate && (this.selectionIsAuto || this.selection == -1)) {
+      await this.pendingUpdate.catch(() => {});
+    }
     let query = this.input.value.trim();
 
     // Note that it's possible that this.completions is empty. This can happen in practice if the
@@ -331,7 +352,16 @@ class VomnibarUI {
     if (this.lastRequestId != requestId) return;
 
     this.completions = results;
-    this.selection = this.completions[0]?.autoSelect ? 0 : this.initialSelectionValue;
+    // PATCH(autoselect-first): in the omni Vomnibar, highlight the top suggestion so Enter opens
+    // it (like Chrome's address bar). Up from row 0 still reaches "no selection", where Enter
+    // opens/searches the typed text. Not done for explicit URLs (scheme, path or :port), where
+    // the user wants exactly what they typed.
+    this.selectionIsAuto = this.completions.length > 0 && this.completerName === "omni" &&
+      query.trim().length > 0 && !this.isUserSearchEngineActive() &&
+      !looksLikeExplicitUrl(query.trim());
+    this.selection = (this.completions[0]?.autoSelect || this.selectionIsAuto)
+      ? 0
+      : this.initialSelectionValue;
     this.renderCompletions(this.completions);
     this.selection = Math.min(
       this.completions.length - 1,
@@ -397,7 +427,15 @@ class VomnibarUI {
   }
 
   async update() {
-    await this.updateCompletions();
+    // PATCH(autoselect-first): remember the in-flight request so Enter can wait for it (see
+    // handleEnterKey).
+    const pending = this.updateCompletions();
+    this.pendingUpdate = pending;
+    try {
+      await pending;
+    } finally {
+      if (this.pendingUpdate === pending) this.pendingUpdate = null;
+    }
     this.input.focus();
   }
 
