@@ -359,6 +359,12 @@ globalThis.lastFocusedInput = (function () {
 })();
 
 const messageHandlers = {
+  // PATCH(tab-switcher): the Ctrl+Tab panel; see content_scripts/tab_switcher.js.
+  tabSwitcherUI(request) {
+    if (!DomUtils.isTopFrame()) return;
+    if (request.action === "show") TabSwitcherUI.show(request);
+    else TabSwitcherUI.hide();
+  },
   getFocusStatus(_request, _sender) {
     return {
       focused: windowIsFocused(),

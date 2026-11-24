@@ -65,6 +65,7 @@
         "content_scripts/mode_visual.js",
         "content_scripts/hud.js",
         "content_scripts/mode_normal.js",
+        "content_scripts/tab_switcher.js",
         "content_scripts/vimium_frontend.js"
       ],
       "css": [
@@ -99,6 +100,19 @@
     "vomnibarInNewTab": {
       "suggested_key": { "default": "Ctrl+Shift+Comma", "mac": "Command+Shift+Comma" },
       "description": "Open the Vomnibar in a new tab"
+    },
+    // Arc-style Ctrl+Tab (background_scripts/tab_switcher.js). Hammerspoon sends these.
+    "tabSwitcherNext": {
+      "suggested_key": { "default": "Alt+Shift+Period", "mac": "MacCtrl+Shift+Period" },
+      "description": "Tab switcher: next most recent tab (Ctrl+Tab)"
+    },
+    "tabSwitcherPrevious": {
+      "suggested_key": { "default": "Alt+Shift+Comma", "mac": "MacCtrl+Shift+Comma" },
+      "description": "Tab switcher: previous (Ctrl+Shift+Tab)"
+    },
+    "tabSwitcherCommit": {
+      "suggested_key": { "default": "Alt+Shift+End", "mac": "MacCtrl+Shift+End" },
+      "description": "Tab switcher: switch to the highlighted tab (Ctrl released)"
     }
   },
   "action": {

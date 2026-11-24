@@ -51,6 +51,17 @@ fork's tests and notes.
   Arc doesn't publish its algorithm; the signals come from a reverse-engineering of Arc 1.17x
   (github.com/MartinPTielemans/ilo/issues/1396), the weights are ours (header of
   `arc_ranking.js`). `node scale/test_arc_ranking.mjs` checks the ranking.
+- **Arc-style Ctrl+Tab** (`PATCH(tab-switcher)`; `background_scripts/tab_switcher.js`, panel in
+  `content_scripts/tab_switcher.js`) — tap Ctrl+Tab and let go to flip to the previous tab; keep
+  holding Ctrl and a panel of the 5 most recent tabs (title, site, icon; no previews) appears,
+  Tab / Shift+Tab move the highlight, letting go of Ctrl switches, Esc cancels. No tab is
+  activated until you let go, so the recency order stays frozen during a walk. Chrome can't bind
+  Ctrl+Tab or see Ctrl being released, so Hammerspoon (DotFiles `hammerspoon/init.lua`) sends three
+  extension shortcuts: `tabSwitcherNext` (Ctrl+Shift+.), `tabSwitcherPrevious` (Ctrl+Shift+,),
+  `tabSwitcherCommit` (Ctrl+Shift+End). With `vomnibarInNewTab` that is Chrome's limit of 4
+  suggested shortcuts. Tabs you haven't visited since Vimium started are ordered by Chrome's
+  `lastAccessed`. No panel on pages Vimium can't run on (chrome://, Web Store); switching still
+  works there. `uv run scale/test_tab_switcher.py` checks it end to end.
 - This `scale/` folder (tests + notes). Chrome ignores it; keep it free of
   `__pycache__` (Chrome refuses to load an extension containing `_`-prefixed names).
 
@@ -64,6 +75,7 @@ git fetch upstream --tags
 git rebase --onto <new-tag> <old-tag> main
 uv run scale/test_vomnibar.py              # the open tab must be #1
 uv run scale/test_autoselect.py            # Enter / web search / go-link, end to end
+uv run scale/test_tab_switcher.py          # Arc-style Ctrl+Tab
 node scale/test_arc_ranking.mjs && node scale/test_page_identity.mjs
 git push --force-with-lease origin main
 ```

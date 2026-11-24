@@ -27,6 +27,7 @@ import {
 // conversion.
 
 import * as TabOperations from "./tab_operations.js";
+import * as tabSwitcher from "./tab_switcher.js"; // PATCH(tab-switcher)
 
 // Allow Vimium's content scripts to access chrome.storage.session. Otherwise,
 // chrome.storage.session will be null in content scripts.
@@ -598,6 +599,10 @@ const HintCoordinator = {
 };
 
 const sendRequestHandlers = {
+  // PATCH(tab-switcher): Esc in the Ctrl+Tab panel.
+  tabSwitcherCancel() {
+    tabSwitcher.tabSwitcherCancel();
+  },
   runBackgroundCommand(request, sender) {
     return BackgroundCommands[request.registryEntry.command](request, sender);
   },
@@ -940,11 +945,16 @@ async function vomnibarInNewTab(tab) {
 
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command === "vomnibarInNewTab") vomnibarInNewTab(tab);
+  // PATCH(tab-switcher)
+  if (command === "tabSwitcherNext") tabSwitcher.tabSwitcherNext();
+  if (command === "tabSwitcherPrevious") tabSwitcher.tabSwitcherPrevious();
+  if (command === "tabSwitcherCommit") tabSwitcher.tabSwitcherCommit();
 });
 
 Object.assign(globalThis, {
   TabOperations,
   vomnibarInNewTab,
+  tabSwitcher, // PATCH(tab-switcher): the tests drive it like the Chrome shortcuts do
   // Exported for tests:
   HintCoordinator,
   BackgroundCommands,
