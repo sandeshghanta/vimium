@@ -18,7 +18,8 @@ import * as ranking from "./ranking.js";
 import { RegexpCache } from "./ranking.js";
 import { pageKey } from "./page_identity.js";
 import { arcRank, goLinkUrl, SEARCH_SCORE } from "./arc_ranking.js";
-import { GO_LINK_URL, HIDDEN_HOSTS } from "./local_config.js";
+import { GO_LINK_URL } from "./local_config.js";
+import { isHiddenUrl } from "./hidden_hosts.js";
 
 // Set this to true to render relevancy when debugging the ranking scores.
 const showRelevancy = false;
@@ -316,7 +317,7 @@ export class BookmarkCompleter {
     this.bookmarksTreePromise = chrome.bookmarks.getTree();
     const bookmarksTree = await this.bookmarksTreePromise;
     this.bookmarks = this.traverseBookmarks(bookmarksTree)
-      .filter((b) => b.url != null);
+      .filter((b) => b.url != null && !isHiddenUrl(b.url)); // PATCH(hidden-hosts)
     this.bookmarksTreePromise = null;
   }
 
@@ -460,6 +461,7 @@ export class DomainCompleter {
   }
 
   onVisited(newPage) {
+    if (isHiddenUrl(newPage.url)) return; // PATCH(hidden-hosts)
     const domain = this.parseDomainAndScheme(newPage.url);
     if (domain) {
       const slot = this.domains[domain] ||
@@ -503,7 +505,8 @@ export class TabCompleter {
   async filter({ queryTerms }) {
     await bgUtils.tabRecency.init();
     // We search all tabs, not just those in the current window.
-    const tabs = await chrome.tabs.query({});
+    // PATCH(hidden-hosts): hidden sites' tabs are never considered.
+    const tabs = (await chrome.tabs.query({})).filter((tab) => !isHiddenUrl(tab.url));
     const results = tabs.filter((tab) => ranking.matches(queryTerms, tab.url, tab.title));
     const suggestions = results
       .map((tab) => {
@@ -753,7 +756,7 @@ export class MultiCompleter {
         deDuplicate: false,
       }),
     });
-    const ranked = arcRank(query, rows, Date.now(), { hiddenHosts: HIDDEN_HOSTS });
+    const ranked = arcRank(query, rows);
     return ranked.map((r) => {
       r.suggestion.relevancy = r.score;
       if (r.kind === "pastSearch") {
@@ -848,7 +851,8 @@ export const HistoryCache = {
       if (entry.title == null) entry.title = "";
     }
     history.sort(this.compareHistoryByUrl);
-    this.history = history;
+    // PATCH(hidden-hosts): hidden sites are never cached, so nothing downstream sees them.
+    this.history = history.filter((entry) => !isHiddenUrl(entry.url));
     chrome.history.onVisited.addListener(this._onVisitedListener);
     chrome.history.onVisitRemoved.addListener(this._onVisitRemovedListener);
     this.chromeHistoryPromise = null;
@@ -863,6 +867,7 @@ export const HistoryCache = {
   // When a page we've seen before has been visited again, be sure to replace our History item so it
   // has the correct "lastVisitTime". That's crucial for ranking Vomnibar suggestions.
   onVisited(newPage) {
+    if (isHiddenUrl(newPage.url)) return; // PATCH(hidden-hosts)
     // On Firefox, some history entries do not have titles.
     if (newPage.title == null) newPage.title = "";
     const i = HistoryCache.binarySearch(newPage, this.history, this.compareHistoryByUrl);

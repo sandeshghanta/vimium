@@ -10,6 +10,7 @@
 // the tab you land on becomes the most recent one.
 
 import * as bgUtils from "./bg_utils.js";
+import { isHiddenUrl } from "./completion/hidden_hosts.js";
 
 export const MAX_TABS = 5;
 // The panel appears only if Ctrl is still held this long after the first Tab (a quick tap just
@@ -67,7 +68,10 @@ async function start() {
   await bgUtils.tabRecency.init();
   const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (!active) return;
-  const tabs = new Map((await chrome.tabs.query({})).map((t) => [t.id, t]));
+  // PATCH(hidden-hosts): hidden sites (Slack) are never candidates, so they don't take a slot.
+  const tabs = new Map(
+    (await chrome.tabs.query({})).filter((t) => !isHiddenUrl(t.url)).map((t) => [t.id, t]),
+  );
   const tracked = bgUtils.tabRecency.getTabsByRecency()
     .filter((id) => id !== active.id && tabs.has(id));
   // Vimium only knows tabs you switched to since it started; the rest go after, by Chrome's own

@@ -81,6 +81,7 @@ async def run(ext: str) -> int:
                     # *.test -> the local server; everything else -> nowhere, so the search engine
                     # and go-link host are never reached (the navigation request is still seen).
                     "--host-resolver-rules=MAP *.test 127.0.0.1, MAP localhost 127.0.0.1, "
+                    "MAP app.slack.com 127.0.0.1, "
                     "MAP * ~NOTFOUND",
                 ],
             )
@@ -93,6 +94,10 @@ async def run(ext: str) -> int:
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             for path in ("/design", "/other"):  # history only
                 await page.goto(base + path)
+            # A hidden site (HIDDEN_HOSTS: app.slack.com): in history and open in a tab.
+            await page.goto(f"http://app.slack.com:{port}/client-history")
+            slack_tab = await ctx.new_page()
+            await slack_tab.goto(f"http://app.slack.com:{port}/client-tab")
             await page.goto(base + "/inbox")
             await page.wait_for_timeout(3000)
 
@@ -188,6 +193,16 @@ async def run(ext: str) -> int:
             await box.press_sequentially("go/wiki-pages", delay=0)
             url = await enter_and_get_url(box)
             check("fast go-link+Enter opens the full go-link", url.endswith("/go/wiki-pages"), url)
+
+            # 9. Hidden sites are never suggested, as history or as an open tab.
+            frame, box = await open_vomnibar(page, sw)
+            await box.press_sequentially("client", delay=60)
+            await page.wait_for_timeout(800)
+            urls = await frame.eval_on_selector_all(
+                "#vomnibar ul li", "els => els.map(e => e.querySelector('.url')?.textContent || '')")
+            check("hidden site (app.slack.com) never suggested",
+                  not any("app.slack.com" in u for u in urls), str(urls))
+            await box.press("Escape")
 
             await ctx.close()
     server.shutdown()

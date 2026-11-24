@@ -59,7 +59,8 @@ async def run(ext: str) -> int:
                 args=[
                     f"--disable-extensions-except={ext}",
                     f"--load-extension={ext}",
-                    "--host-resolver-rules=MAP *.test 127.0.0.1, MAP * ~NOTFOUND",
+                    "--host-resolver-rules=MAP *.test 127.0.0.1, MAP app.slack.com 127.0.0.1, "
+                    "MAP * ~NOTFOUND",
                 ],
             )
             if not ctx.service_workers:
@@ -68,9 +69,12 @@ async def run(ext: str) -> int:
 
             pages = {}
             first = ctx.pages[0] if ctx.pages else await ctx.new_page()
-            for i, name in enumerate("ABCD"):
+            # S is on app.slack.com, a HIDDEN_HOSTS site, visited just before D: it must never be
+            # a candidate, so every expectation below is as if it weren't open.
+            for i, name in enumerate("ABCSD"):
                 pg = first if i == 0 else await ctx.new_page()
-                await pg.goto(f"http://site.test:{port}/{name}")
+                host = "app.slack.com" if name == "S" else "site.test"
+                await pg.goto(f"http://{host}:{port}/{name}")
                 await pg.bring_to_front()  # activates the tab, so Vimium records the visit
                 await pg.wait_for_timeout(300)
                 pages[name] = pg
@@ -93,7 +97,7 @@ async def run(ext: str) -> int:
                              selected: rows.findIndex(r => r.classList.contains('selected')) };
                 }""")
 
-            # 1. Tap: flips to the previous tab, no panel.
+            # 1. Tap: flips to the previous tab (C, not the hidden S), no panel.
             await call("tabSwitcherNext")
             await call("tabSwitcherCommit")
             await pages["D"].wait_for_timeout(300)

@@ -10,8 +10,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const srcDir = join(dirname(fileURLToPath(import.meta.url)), "../background_scripts/completion");
 const tmp = mkdtempSync(join(tmpdir(), "arc-ranking-"));
 writeFileSync(join(tmp, "package.json"), '{"type": "module"}');
-for (const f of ["arc_ranking.js", "page_identity.js"]) copyFileSync(join(srcDir, f), join(tmp, f));
+for (const f of ["arc_ranking.js", "page_identity.js", "hidden_hosts.js", "local_config.js"]) {
+  copyFileSync(join(srcDir, f), join(tmp, f));
+}
 const { arcRank, goLinkUrl, SEARCH_SCORE } = await import(pathToFileURL(join(tmp, "arc_ranking.js")).href);
+const { isHiddenUrl } = await import(pathToFileURL(join(tmp, "hidden_hosts.js")).href);
 
 const NOW = Date.parse("2026-11-23T12:00:00Z");
 const DAY = 864e5;
@@ -206,18 +209,14 @@ check("Slack '- N new items' and ' - Claude' suffixes do not split a page", () =
   assert.equal(out.filter((r) => r.kind === "history").length, 1);
 });
 
-check("hidden hosts never show (history, tabs, site rows); other sites unaffected", () => {
-  const rows = [
-    tab("https://app.slack.com/client/E1/C1", "general (Channel) - Slack"),
-    h("https://app.slack.com/client/E1/C2", "random (Channel) - Slack", { visits: 50, typed: 20 }),
-    { kind: "domain", url: "https://app.slack.com", title: "" },
-    h("https://api.slack.com/apps", "Slack API: Applications"),
-    search(),
-  ];
-  const out = arcRank("slack", rows, NOW, { hiddenHosts: ["app.slack.com"] });
-  assert.ok(!out.some((r) => r.url.includes("app.slack.com")), JSON.stringify(out.map((r) => r.url)));
-  assert.ok(out.some((r) => r.url === "https://api.slack.com/apps"));
-  assert.ok(out.some((r) => r.kind === "search"));
+check("hidden hosts: isHiddenUrl matches the host and its subdomains only", () => {
+  const H = ["app.slack.com"];
+  assert.equal(isHiddenUrl("https://app.slack.com/client/E1/C1", H), true);
+  assert.equal(isHiddenUrl("https://x.app.slack.com/", H), true);
+  assert.equal(isHiddenUrl("https://api.slack.com/apps", H), false);
+  assert.equal(isHiddenUrl("https://notapp.slack.com.evil.test/", H), false);
+  assert.equal(isHiddenUrl("chrome://newtab/", H), false);
+  assert.equal(isHiddenUrl("", H), false);
 });
 
 console.log(`${n} checks passed`);

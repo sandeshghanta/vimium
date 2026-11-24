@@ -28,6 +28,7 @@ import {
 
 import * as TabOperations from "./tab_operations.js";
 import * as tabSwitcher from "./tab_switcher.js"; // PATCH(tab-switcher)
+import { isHiddenUrl } from "./completion/hidden_hosts.js"; // PATCH(hidden-hosts)
 
 // Allow Vimium's content scripts to access chrome.storage.session. Otherwise,
 // chrome.storage.session will be null in content scripts.
@@ -413,7 +414,11 @@ const BackgroundCommands = {
   async visitPreviousTab({ count, tab }) {
     await bgUtils.tabRecency.init();
     let tabIds = bgUtils.tabRecency.getTabsByRecency();
-    tabIds = tabIds.filter((tabId) => tabId !== tab.id);
+    // PATCH(hidden-hosts): never jump to a hidden site's tab (Slack).
+    const hidden = new Set(
+      (await chrome.tabs.query({})).filter((t) => isHiddenUrl(t.url)).map((t) => t.id),
+    );
+    tabIds = tabIds.filter((tabId) => tabId !== tab.id && !hidden.has(tabId));
     if (tabIds.length > 0) {
       const id = tabIds[(count - 1) % tabIds.length];
       selectSpecificTab({ id });
