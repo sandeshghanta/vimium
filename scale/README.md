@@ -45,6 +45,8 @@ fork's tests and notes.
   - text that is a URL (`example.com`, `localhost:3000/x`, `https://…`) gets a **url** row
     first, as Arc keeps a typed URL first, so Enter opens it even if you never visited it;
   - `go/<name>` gets a **go link** row first (URL template in `local_config.js`);
+  - sites in `HIDDEN_HOSTS` (`local_config.js`; `app.slack.com`, which has its own Hammerspoon
+    shortcut) never show, as history, open tabs or site rows;
   - open tabs are never hidden by de-dup (two Claude chats can both be titled "Claude"); the
     sign-in filter matches paths like `/login` and `/sso/`, so a real page at such a path is
     hidden from history too.

@@ -18,7 +18,7 @@ import * as ranking from "./ranking.js";
 import { RegexpCache } from "./ranking.js";
 import { pageKey } from "./page_identity.js";
 import { arcRank, goLinkUrl, SEARCH_SCORE } from "./arc_ranking.js";
-import { GO_LINK_URL } from "./local_config.js";
+import { GO_LINK_URL, HIDDEN_HOSTS } from "./local_config.js";
 
 // Set this to true to render relevancy when debugging the ranking scores.
 const showRelevancy = false;
@@ -753,7 +753,7 @@ export class MultiCompleter {
         deDuplicate: false,
       }),
     });
-    const ranked = arcRank(query, rows);
+    const ranked = arcRank(query, rows, Date.now(), { hiddenHosts: HIDDEN_HOSTS });
     return ranked.map((r) => {
       r.suggestion.relevancy = r.score;
       if (r.kind === "pastSearch") {

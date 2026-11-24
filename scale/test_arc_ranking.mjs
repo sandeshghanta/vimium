@@ -206,4 +206,18 @@ check("Slack '- N new items' and ' - Claude' suffixes do not split a page", () =
   assert.equal(out.filter((r) => r.kind === "history").length, 1);
 });
 
+check("hidden hosts never show (history, tabs, site rows); other sites unaffected", () => {
+  const rows = [
+    tab("https://app.slack.com/client/E1/C1", "general (Channel) - Slack"),
+    h("https://app.slack.com/client/E1/C2", "random (Channel) - Slack", { visits: 50, typed: 20 }),
+    { kind: "domain", url: "https://app.slack.com", title: "" },
+    h("https://api.slack.com/apps", "Slack API: Applications"),
+    search(),
+  ];
+  const out = arcRank("slack", rows, NOW, { hiddenHosts: ["app.slack.com"] });
+  assert.ok(!out.some((r) => r.url.includes("app.slack.com")), JSON.stringify(out.map((r) => r.url)));
+  assert.ok(out.some((r) => r.url === "https://api.slack.com/apps"));
+  assert.ok(out.some((r) => r.kind === "search"));
+});
+
 console.log(`${n} checks passed`);

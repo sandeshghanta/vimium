@@ -105,8 +105,23 @@ export function scoreRow(query, row, now) {
 // Picks and orders the rows to show. `rows` may contain anything with { kind, url, title, ... };
 // rows with kind "search", "golink" or "url" (the typed text as a URL) must carry their own
 // `score`. Returns the chosen rows, best first, each with `score` set. The search row always gets a
-// slot, and open tabs are never hidden by de-dup (two tabs can share a title).
-export function arcRank(query, rows, now = Date.now()) {
+// slot, and open tabs are never hidden by de-dup (two tabs can share a title). Rows on
+// `options.hiddenHosts` (or their subdomains) never show.
+function onHiddenHost(url, hiddenHosts) {
+  if (!hiddenHosts?.length) return false;
+  let hostname;
+  try {
+    hostname = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return hiddenHosts.some((h) => hostname === h || hostname.endsWith("." + h));
+}
+
+export function arcRank(query, rows, now = Date.now(), options = {}) {
+  rows = rows.filter((r) =>
+    ["search", "golink", "url"].includes(r.kind) || !onHiddenHost(r.url, options.hiddenHosts)
+  );
   // A matching open tab makes the "domain" row (site root from history) redundant, and so does
   // a history row for that same front page (which has a title).
   const hasTab = rows.some((r) => r.kind === "tab");
