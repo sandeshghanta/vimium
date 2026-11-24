@@ -55,6 +55,11 @@ fork's tests and notes.
   Arc doesn't publish its algorithm; the signals come from a reverse-engineering of Arc 1.17x
   (github.com/MartinPTielemans/ilo/issues/1396), the weights are ours (header of
   `arc_ranking.js`). `node scale/test_arc_ranking.mjs` checks the ranking.
+- **Vomnibar look** (`PATCH(vomnibar-ui)`; `pages/vomnibar_page.css`, `generateHtml` in
+  `completers.js`, the frame size in `content_scripts/vimium.css`) — styled like the Ctrl+Tab
+  panel: a centred rounded panel (680px max) at 15% from the top, a borderless search field,
+  rows with a favicon (a magnifier for searches), title, URL and a small source label, a soft
+  blue highlight; light/dark follow the system.
 - **Arc-style Ctrl+Tab** (`PATCH(tab-switcher)`; `background_scripts/tab_switcher.js`, panel in
   `content_scripts/tab_switcher.js`) — tap Ctrl+Tab and let go to flip to the previous tab; keep
   holding Ctrl and a panel of the 5 most recent tabs (title, site, icon; no previews) appears,

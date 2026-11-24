@@ -1,3 +1,40 @@
+/* PATCH(vomnibar-ui): styled like the Ctrl+Tab switcher (content_scripts/tab_switcher.js): a
+ * centred rounded panel, a borderless search field, rows with an icon, title, URL and a small
+ * source label, and a soft blue highlight. Light and dark follow the system. */
+
+:root {
+  --bg: rgba(250, 250, 250, 0.98);
+  --fg: #1d1d1f;
+  --muted: #6e6e73;
+  --faint: rgba(0, 0, 0, 0.06);
+  --border: rgba(0, 0, 0, 0.12);
+  --sel: rgba(0, 113, 227, 0.12);
+  --sel-ring: rgba(0, 113, 227, 0.5);
+  --accent: #0071e3;
+  --chip: rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: rgba(38, 38, 40, 0.98);
+    --fg: #f5f5f7;
+    --muted: #a1a1a6;
+    --faint: rgba(255, 255, 255, 0.07);
+    --border: rgba(255, 255, 255, 0.12);
+    --sel: rgba(10, 132, 255, 0.22);
+    --sel-ring: rgba(10, 132, 255, 0.65);
+    --accent: #0a84ff;
+    --chip: rgba(255, 255, 255, 0.08);
+  }
+}
+
+html, body {
+  background: transparent;
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
 ul {
   list-style: none;
   display: none;
@@ -8,187 +45,138 @@ ul {
 #vomnibar {
   display: block;
   position: fixed;
-  width: calc(100% - 20px); /* adjusted to keep border radius and box-shadow visible*/
-  top: 8px;
-  left: 8px;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-
-  background: #f1f1f1;
+  /* Room on every side for the shadow, which the iframe would otherwise clip. */
+  top: 24px;
+  left: 40px;
+  width: calc(100% - 80px);
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+  font: 13px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-align: left;
-  border-radius: 4px;
-  box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.8);
-  border: 1px solid #aaa;
   /* One less than hint markers and the help dialog (see ../content_scripts/vimium.css). */
   z-index: 2139999999;
 }
 
-#vomnibar input {
-  font-size: 20px;
-  height: 34px;
-  margin-bottom: 0;
-  padding: 4px;
-  background-color: white;
-  color: black;
-  border-radius: 3px;
-  border: 1px solid #e8e8e8;
-  box-shadow: #444 0px 0px 1px;
-  width: 100%;
-  outline: none;
-  box-sizing: border-box;
-}
-
 #vomnibar-search-area {
   display: block;
-  padding: 10px;
-  border-radius: 4px 4px 0 0;
-  border-bottom: 1px solid #c6c9ce;
+  padding: 2px 2px 8px;
+}
+
+#vomnibar input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 9px;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: 400 20px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  caret-color: var(--accent);
+}
+
+#vomnibar input::placeholder {
+  color: var(--muted);
+}
+
+#vomnibar input::selection {
+  background-color: var(--sel);
 }
 
 #vomnibar ul {
-  border-radius: 0 0 4px 4px;
+  border-top: 1px solid var(--faint);
+  padding-top: 6px;
 }
 
 #vomnibar li {
-  border-bottom: 1px solid #ddd;
-  line-height: 1.1em;
-  padding: 7px 10px;
-  font-size: 16px;
-  color: black;
-  position: relative;
-  display: list-item;
-  margin: auto;
-}
-
-#vomnibar li:last-of-type {
-  border-bottom: none;
-}
-
-#vomnibar li .top-half, #vomnibar li .bottom-half {
   display: block;
-  overflow: hidden;
+  margin: 0;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  color: var(--fg);
 }
 
-#vomnibar li .bottom-half {
-  font-size: 15px;
-  margin-top: 3px;
-  padding: 2px 0;
+#vomnibar li.selected {
+  background: var(--sel);
+  border-color: var(--sel-ring);
+}
+
+#vomnibar li .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  position: relative;
 }
 
 #vomnibar li .icon {
-  padding: 0 13px 0 6px;
-  vertical-align: bottom;
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 
-#vomnibar li .source {
-  color: #777;
-  margin-right: 4px;
+#vomnibar li .glyph {
+  color: var(--muted);
 }
-#vomnibar li .relevancy {
-  position: absolute;
-  right: 0;
-  top: 0;
-  padding: 5px;
-  color: black;
-  font-family: monospace;
-  width: 100px;
+
+#vomnibar li .text {
+  flex: 1;
+  min-width: 0;
+}
+
+#vomnibar li .title {
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  font-size: 14px;
 }
 
 #vomnibar li .url {
   white-space: nowrap;
-  color: #224684;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 1px;
 }
 
 #vomnibar li .match {
-  font-weight: bold;
-  color: black;
+  font-weight: 700;
+  color: inherit;
 }
 
-#vomnibar li em, #vomnibar li .title {
-  color: black;
-  margin-left: 4px;
+#vomnibar li .source {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
+
+#vomnibar li.selected .source {
+  color: var(--fg);
+}
+
+#vomnibar li .relevancy {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 #vomnibar li em {
   font-style: italic;
-}
-#vomnibar li em .match, #vomnibar li .title .match {
-  color: #333;
-}
-
-#vomnibar li.selected {
-  background-color: #bbcee9;
-}
-
-#vomnibar input::selection {
-  /* This is the light grey color of the vomnibar border. */
-  /* background-color: #F1F1F1; */
-
-  /* This is the light blue color of the vomnibar selected item. */
-  /* background-color: #BBCEE9; */
-
-  /* This is a considerably lighter blue than Vimium blue, which seems softer
-   * on the eye for this purpose. */
-  background-color: #e6eefb;
 }
 
 .no-insert-text {
   visibility: hidden;
-}
-
-/* Dark Vomnibar */
-
-@media (prefers-color-scheme: dark) {
-  #vomnibar {
-    background-color: var(--vimium-background-color);
-    color: var(--vimium-background-text-color);
-    border-radius: 6px;
-    border: 1px solid var(--vimium-foreground-color);
-  }
-
-  #vomnibar-search-area {
-    border-bottom: 1px solid var(--vimium-foreground-color);
-  }
-
-  #vomnibar input {
-    background-color: var(--vimium-foreground-color);
-    color: var(--vimium-foreground-text-color);
-    border: none;
-  }
-
-  /* Ensure selected text is visible in dark mode. */
-  #vomnibar input::selection {
-    color: var(--vimium-foreground-color);
-    background-color: var(--vimium-foreground-text-color);
-  }
-
-  #vomnibar li {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  #vomnibar li.selected {
-    background-color: #37383a;
-  }
-
-  #vomnibar li .url {
-    white-space: nowrap;
-    color: #5ca1f7;
-  }
-
-  #vomnibar li em,
-  #vomnibar li .title {
-    color: white;
-  }
-
-  #vomnibar li .source {
-    color: #9aa0a6;
-  }
-
-  #vomnibar li .match {
-    color: white;
-  }
-
-  #vomnibar li em .match,
-  #vomnibar li .title .match {
-    color: white;
-  }
 }

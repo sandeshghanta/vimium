@@ -76,45 +76,44 @@ export class Suggestion {
     return this.relevancy;
   }
 
+  // PATCH(vomnibar-ui): one row per suggestion, styled like the Ctrl+Tab switcher: an icon, the
+  // title with the URL (or what the row does) under it, and a small source label on the right.
   generateHtml() {
     if (this.html) return this.html;
     const relevancyHtml = showRelevancy
       ? `<span class='relevancy'>${this.computeRelevancy()}</span>`
       : "";
-    const insertTextClass = this.insertText ? "" : "no-insert-text";
-    const insertTextIndicator = "&#8618;"; // A right hooked arrow.
     if (this.insertText && this.isCustomSearch) {
       this.title = this.insertText;
     }
-    let faviconHtml = "";
-    if (this.description === "tab" && !bgUtils.isFirefox()) {
+    const searchIcon = `<svg class="icon glyph" viewBox="0 0 16 16" aria-hidden="true">` +
+      `<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/>` +
+      `<path d="M10.4 10.4 14 14" stroke="currentColor" stroke-width="1.6" ` +
+      `stroke-linecap="round"/></svg>`;
+    let iconHtml = `<span class="icon"></span>`;
+    if (this.isCustomSearch) {
+      iconHtml = searchIcon;
+    } else if (this.url && !bgUtils.isFirefox()) {
       const faviconUrl = new URL(chrome.runtime.getURL("/_favicon/"));
       faviconUrl.searchParams.set("pageUrl", this.url);
-      faviconUrl.searchParams.set("size", "16");
-      faviconHtml = `<img class="icon" src="${faviconUrl.toString()}" />`;
+      faviconUrl.searchParams.set("size", "32");
+      iconHtml = `<img class="icon" src="${faviconUrl.toString()}" alt="" />`;
     }
-    if (this.isCustomSearch) {
-      this.html = `\
-<div class="top-half">
-   <span class="source ${insertTextClass}">${insertTextIndicator}</span><span class="source">${this.description}</span>
-   <span class="title">${this.highlightQueryTerms(Utils.escapeHtml(this.title))}</span>
-   ${relevancyHtml}
- </div>\
-`;
-    } else {
-      this.html = `\
-<div class="top-half">
-   <span class="source ${insertTextClass}">${insertTextIndicator}</span><span class="source">${this.description}</span>
-   <span class="title">${this.highlightQueryTerms(Utils.escapeHtml(this.title))}</span>
- </div>
- <div class="bottom-half">
-  <span class="source no-insert-text">${insertTextIndicator}</span>${faviconHtml}<span class="url">${
-        this.highlightQueryTerms(Utils.escapeHtml(this.shortenUrl()))
-      }</span>
+    const label = { domain: "site" }[this.description] ?? this.description;
+    const subtitle = this.isCustomSearch
+      ? Utils.escapeHtml(this.isWebSearch ? "Search the web" : `Search ${this.description}`)
+      : this.highlightQueryTerms(Utils.escapeHtml(this.shortenUrl()));
+    const title = this.title || this.shortenUrl();
+    this.html = `\
+<div class="row">
+  ${iconHtml}
+  <div class="text">
+    <div class="title">${this.highlightQueryTerms(Utils.escapeHtml(title))}</div>
+    <div class="url">${subtitle}</div>
+  </div>
+  <span class="source">${Utils.escapeHtml(label ?? "")}</span>
   ${relevancyHtml}
-</div>\
-`;
-    }
+</div>`;
     return this.html;
   }
 

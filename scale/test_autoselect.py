@@ -142,9 +142,9 @@ async def run(ext: str) -> int:
             typed = f"localhost:{port}/other?x=1"
             await box.press_sequentially(typed, delay=20)
             await page.wait_for_timeout(800)
-            first = await frame.locator("#vomnibar ul li").first.inner_text()
+            first = await frame.locator("#vomnibar ul li .source").first.inner_text()
             check("typed URL: URL row first and highlighted",
-                  first.split()[0:1] == ["url"] and
+                  first.strip() == "url" and
                   await frame.locator("#vomnibar ul li").first.get_attribute("class") == "selected",
                   first.replace("\n", " ")[:60])
             url = await enter_and_get_url(box)

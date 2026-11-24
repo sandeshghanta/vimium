@@ -207,12 +207,14 @@ iframe.vomnibar-frame {
 
   display: block;
   position: fixed;
-  width: calc(80% + 20px); /* same adjustment as in pages/vomnibar_page.js */
-  min-width: 400px;
-  height: calc(100% - 70px);
-  top: 70px;
+  /* PATCH(vomnibar-ui): a centred panel like the Ctrl+Tab switcher; the extra 80px / 24px is
+   * room for its shadow (see pages/vomnibar_page.css). */
+  width: calc(min(680px, 100vw - 32px) + 80px);
+  height: calc(100% - 15vh + 24px);
+  top: calc(15vh - 24px);
   left: 50%;
-  margin: 0 0 0 -40%;
+  margin: 0;
+  transform: translateX(-50%);
   border: none;
   font-family: sans-serif;
   z-index: 2147483647;
