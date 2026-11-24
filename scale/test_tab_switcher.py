@@ -28,6 +28,9 @@ class Handler(BaseHTTPRequestHandler):
         name = self.path.strip("/") or "root"
         body = f"<!doctype html><title>Page {name}</title><h1>Page {name}</h1>".encode()
         self.send_response(200)
+        if name == "D":
+            # Like YouTube: Trusted Types enforced, so innerHTML-style DOM building is blocked.
+            self.send_header("Content-Security-Policy", "require-trusted-types-for 'script'")
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
         self.wfile.write(body)
@@ -136,6 +139,18 @@ async def run(ext: str) -> int:
             await pages["B"].wait_for_timeout(300)
             check("Esc cancels", await active() == "B" and await panel(pages["B"]) is None,
                   await active())
+
+            # 5b. The panel still shows on a page where Vimium is excluded (e.g. youtube.com).
+            await sw.evaluate("""Settings.set("exclusionRules",
+                [{ pattern: "http://site.test:*/B*", passKeys: "" }])""")
+            await pages["B"].reload()
+            await pages["B"].wait_for_timeout(1500)
+            await call("tabSwitcherNext")
+            await pages["B"].wait_for_timeout(400)
+            pnl = await panel(pages["B"])
+            check("panel shows where Vimium is excluded", pnl is not None, str(pnl))
+            await call("tabSwitcherCancel")
+            await sw.evaluate('Settings.set("exclusionRules", [])')
 
             # 6. Walking all the way round lands back on the current tab: release does nothing.
             for _ in range(4):

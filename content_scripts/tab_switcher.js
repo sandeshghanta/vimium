@@ -7,7 +7,10 @@ const TabSwitcherUI = {
   root: null,
 
   ensureDom() {
-    if (this.host?.isConnected) return;
+    // In fullscreen (a YouTube video) only the fullscreen element is drawn, so go inside it.
+    const container = document.fullscreenElement || document.documentElement || document.body;
+    if (this.host?.isConnected && this.host.parentNode === container) return;
+    this.host?.remove();
     this.host = document.createElement("div");
     this.host.className = "vimium-reset";
     this.host.id = "vimium-tab-switcher";
@@ -41,7 +44,7 @@ const TabSwitcherUI = {
     font-size: 11px; }
 </style>
 <div class="panel" role="listbox" aria-label="Recent tabs"></div>`;
-    (document.documentElement || document.body).appendChild(this.host);
+    container.appendChild(this.host);
   },
 
   show({ items, index }) {

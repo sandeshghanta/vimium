@@ -414,7 +414,8 @@ async function handleMessage(request, sender) {
   // Some request are handled elsewhere in the code base; ignore them here.
   const shouldHandleMessage = request.handler !== "userIsInteractingWithThePage" &&
     (isEnabledForUrl ||
-      ["checkEnabledAfterURLChange", "runInTopFrame"].includes(request.handler));
+      // PATCH(tab-switcher): the Ctrl+Tab panel shows even where Vimium's keys are excluded.
+      ["checkEnabledAfterURLChange", "runInTopFrame", "tabSwitcherUI"].includes(request.handler));
   if (shouldHandleMessage) {
     const result = await messageHandlers[request.handler](request, sender);
     return result;
